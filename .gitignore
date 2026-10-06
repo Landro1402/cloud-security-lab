@@ -1,0 +1,22 @@
+# Terraform: local cache, state and deployment files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.auto.tfvars
+!*.tfvars.example
+crash.log
+
+# Credentials and local configuration
+.aws/
+.env
+.env.*
+!.env.example
+.local/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
