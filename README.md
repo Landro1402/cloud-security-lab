@@ -207,9 +207,24 @@ terraform -chdir=terraform destroy
 Review the resources listed in the confirmation prompt before
 approving destruction.
 
+## IAM least-privilege exercise
+
+Designed and simulated an identity policy allowing object reads
+only under the training/ prefix.
+
+Five scenarios produced the expected decisions: one allowed read
+and four implicit denials.
+
+See [policy design, results and limitations](docs/iam-least-privilege.md)
+and the [example policy](policies/training-reader-policy.json.example).
+
+The policy has not yet been attached to an application role.
+
 ## Next steps
 
 - Design and evaluate a least-privilege S3 application policy.
 - Automate local tests through continuous integration.
 - Extend the checker with structured reports and additional
-  error-handling tests.
+  error-handling tests.   
+
+
