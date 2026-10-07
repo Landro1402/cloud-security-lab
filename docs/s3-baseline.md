@@ -60,14 +60,24 @@ automatically deleting stored objects.
 
 ## Automated configuration verification
 
-The Python checker returned PASS for all six implemented checks:
-four public access block flags, BucketOwnerEnforced ownership and
-default AES256 encryption. Its exit code was 0.
+All seven implemented checks passed against the deployed bucket:
+- Four public access block settings.
+- BucketOwnerEnforced object ownership.
+- Default AES256 encryption.
+- An explicit deny of non-HTTPS requests covering the bucket
+  and all objects.
 
-Ten local unit tests passed, covering expected settings, disabled
-or missing settings, and configurations outside the chosen baseline.
+The checker returned exit code 0.
 
-An expired AWS login session caused the checker to report an error.
+Eighteen local unit tests passed. Negative scenarios included
+disabled or missing settings, an Allow instead of a Deny,
+incomplete resource coverage, limited actions, additional
+conditions and a policy referencing a different bucket.
+
+An expired AWS login session caused an error to be reported.
 After reauthentication, the live checks completed successfully.
 
-HTTPS policy inspection remains manual at this stage.
+The HTTPS check inspects the policy structure. Rejection of an
+actual HTTP request has not been tested. The checker recognises
+the project's specific policy pattern and is not a complete
+IAM policy evaluator.

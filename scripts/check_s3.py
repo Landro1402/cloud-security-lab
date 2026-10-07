@@ -35,6 +35,48 @@ def check_encryption(response):
         ).get("SSEAlgorithm") == "AES256"
     )
 
+def check_https_policy(policy,bucket):
+    bucket_arn = f"arn:aws:s3:::{bucket}"
+    required_resources = {bucket_arn, f"{bucket_arn}/*"}
+
+    statements = policy.get("Statement", [])
+    if isinstance(statements, dict):
+        statements = [statements]
+
+    for statement in statements:
+        if not isinstance(statement, dict):
+            continue
+        actions = statement.get("Action", [])
+        if isinstance(actions, str):
+            actions = [actions]
+        resources = statement.get("Resource", [])
+        if isinstance(resources, str):
+            resources = [resources]
+
+        principal = statement.get("Principal")
+        condition = statement.get("Condition")
+        expected_condition = {
+            "Bool": {"aws:SecureTransport": "false"}
+        }
+        boolean_condition = {
+            "Bool": {"aws:SecureTransport": False}
+        }
+        
+        if (
+            statement.get("Effect") == "Deny"
+            and principal in ("*", {"AWS": "*"})
+            and ("s3:*" in actions or "*" in actions)
+            and required_resources.issubset(set(resources))
+            and condition in (expected_condition, boolean_condition)
+            and "NotAction" not in statement
+            and "NotResource" not in statement
+            and "NotPrincipal" not in statement
+        ):
+            return True
+        
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Check an S3 bucket's public access block settings."
@@ -77,7 +119,12 @@ def main():
             "get-bucket-ownership-controls"
         )
         encryption_response = read_configuration("get-bucket-encryption")
-
+        
+        policy_response = read_configuration("get-bucket-policy")
+        policy = json.loads(policy_response["Policy"])
+        if not isinstance(policy, dict):
+            raise ValueError("Unexpected bucket policy structure.")
+        
         configuration = public_response.get(
             "PublicAccessBlockConfiguration"
         )
@@ -88,6 +135,9 @@ def main():
         checks["BucketOwnerEnforced"] = check_ownership(ownership_response)
         checks["DefaultEncryptionAES256"] = check_encryption(
             encryption_response
+        )
+        checks["HTTPSRequired"] = check_https_policy(
+            policy, args.bucket
         )
 
     except subprocess.CalledProcessError as error:
