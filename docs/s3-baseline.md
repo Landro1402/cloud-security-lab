@@ -57,3 +57,17 @@ To remove the lab infrastructure, empty the bucket and review
 
 The bucket uses force_destroy=false to prevent Terraform from
 automatically deleting stored objects.
+
+## Automated configuration verification
+
+The Python checker returned PASS for all six implemented checks:
+four public access block flags, BucketOwnerEnforced ownership and
+default AES256 encryption. Its exit code was 0.
+
+Ten local unit tests passed, covering expected settings, disabled
+or missing settings, and configurations outside the chosen baseline.
+
+An expired AWS login session caused the checker to report an error.
+After reauthentication, the live checks completed successfully.
+
+HTTPS policy inspection remains manual at this stage.

@@ -28,7 +28,16 @@ access was denied. The public access block check is automated in Python and cove
 
 See [validation results and limitations](docs/s3-baseline.md).
 
-## Automated public access check
+## Automated S3 configuration checks
+
+The script verifies:
+- All four bucket-level public access block settings.
+- BucketOwnerEnforced object ownership.
+- Default SSE-S3 encryption using AES256.
+
+The encryption check verifies this project's specific baseline.
+A different encryption configuration, such as SSE-KMS, does not
+automatically imply an insecure bucket.
 
 Requires Python 3 and an authenticated AWS CLI profile.
 
@@ -41,9 +50,9 @@ python3 scripts/check_s3.py \
 ```
 
 Exit codes:
-- `0`: all four public access block settings are enabled.
-- `1`: at least one setting is disabled or missing.
-- `2`: the check could not be completed.
+- `0`: all implemented configuration checks passed.
+- `1`: at least one configuration does not match the expected baseline.
+- `2`: the checks could not be completed.
 
 This check reads bucket configuration. It does not perform a complete
 assessment of effective permissions.
