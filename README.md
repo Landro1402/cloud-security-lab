@@ -24,6 +24,34 @@ Lab scope:
 
 S3 baseline deployed and manually verified on AWS.
 Authenticated upload and download succeeded; anonymous object
-access was denied. Automated Python checks are the next step.
+access was denied. The public access block check is automated in Python and covered by local tests.
 
 See [validation results and limitations](docs/s3-baseline.md).
+
+## Automated public access check
+
+Requires Python 3 and an authenticated AWS CLI profile.
+
+```bash
+python3 scripts/check_s3.py \
+  --bucket YOUR_BUCKET_NAME \
+  --account YOUR_ACCOUNT_ID \
+  --profile YOUR_AWS_PROFILE \
+  --region eu-north-1
+```
+
+Exit codes:
+- `0`: all four public access block settings are enabled.
+- `1`: at least one setting is disabled or missing.
+- `2`: the check could not be completed.
+
+This check reads bucket configuration. It does not perform a complete
+assessment of effective permissions.
+
+## Local tests
+
+No AWS credentials or external Python packages are required.
+
+```bash
+python3 -m unittest discover -s tests -v
+```
