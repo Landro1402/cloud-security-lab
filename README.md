@@ -5,7 +5,7 @@ Infrastructure as Code and automated security verification.
 
 ## First lab: secure S3 baseline
 
-Planned implementation:
+Lab scope:
 - Provision an S3 bucket with Terraform.
 - Block public access and disable ACLs.
 - Configure server-side encryption.
@@ -22,4 +22,8 @@ Planned implementation:
 
 ## Status
 
-Repository setup in progress. No AWS resources deployed yet.
+S3 baseline deployed and manually verified on AWS.
+Authenticated upload and download succeeded; anonymous object
+access was denied. Automated Python checks are the next step.
+
+See [validation results and limitations](docs/s3-baseline.md).
