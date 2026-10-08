@@ -228,3 +228,12 @@ The policy has not yet been attached to an application role.
   error-handling tests.   
 
 
+## IAM Least-Privilege Lab
+
+Provisioned a dedicated S3 reader role with Terraform and validated
+its permissions using temporary AWS STS credentials.
+
+The role can retrieve training objects but cannot read private
+objects, upload files, delete objects, or list the bucket.
+
+See [IAM design, validation and limitations](docs/iam-role-validation.md).
