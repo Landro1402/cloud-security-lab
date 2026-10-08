@@ -82,3 +82,27 @@ the operator login before retrying.
   KMS keys have not been implemented or validated by these checks.
 
 For object cleanup and resource destruction, use [teardown](setup.md#teardown).
+
+## Bucket policy baseline validation — 9 October 2026
+
+The original HTTPS check verifies that the policy contains the expected
+insecure-transport denial. It does not reject additional policy statements.
+
+The new `BucketPolicyMatchesBaseline` check verifies that the policy contains
+only the intended statement, with the expected action, resources and condition.
+
+Local tests cover:
+- The expected policy.
+- An additional cross-account Allow statement.
+- An additional Deny statement.
+- An additional resource.
+
+All 32 local tests passed. The live S3 checker returned eight PASS results
+and exit code 0 after refreshing the operator's AWS login session.
+
+Additional protective restrictions also fail the baseline check because they
+change the intended configuration. A failure therefore indicates drift,
+which requires investigation; it does not automatically indicate a vulnerability.
+
+This check covers the bucket policy only. It does not establish that every
+identity, access point or account-level permission is secure.
