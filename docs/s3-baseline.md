@@ -41,9 +41,10 @@ IAM resources were added.
 | Manual fixture cleanup | Object deleted; bucket confirmed empty at that time |
 | Configuration checker | Seven PASS results; exit code 0 |
 
-The initial S3 checks had 18 passing unit tests. The current repository
-adds five IAM result-classification tests and five runner tests,
-for 28 local tests overall.
+The earlier S3 checker had 18 passing unit tests. Adding five IAM
+result-classification tests and five runner tests brought the suite to 28.
+The bucket policy baseline checks added four further tests, bringing
+the current total to 32.
 
 ## How to reproduce configuration verification
 

@@ -143,7 +143,7 @@ python3 scripts/run_iam_lab.py \
 ```
 
 Check `echo $?` immediately after each checker or runner. Offline tests should
-pass; the configuration checker should print seven PASS results. The runner
+pass; the configuration checker should print eight PASS results. The runner
 should print fixture creation, reader identity/content/access checks, upload
 and deletion denials, and successful cleanup requests before returning `0`.
 

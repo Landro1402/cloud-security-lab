@@ -78,44 +78,44 @@ def check_https_policy(policy,bucket):
 
 
 def check_bucket_policy_baseline(policy, bucket):
-        if not isinstance(policy, dict):
-            return False
-        if policy.get("Version") != "2012-10-17":
-            return False
+    if not isinstance(policy, dict):
+        return False
+    if policy.get("Version") != "2012-10-17":
+        return False
 
-        statements = policy.get("Statement")
-        if isinstance(statements, dict):
-            statements = [statements]
-        if not isinstance(statements, list) or len(statements) != 1:
-            return False
+    statements = policy.get("Statement")
+    if isinstance(statements, dict):
+        statements = [statements]
+    if not isinstance(statements, list) or len(statements) != 1:
+        return False
 
-        statement = statements[0]
-        if not isinstance(statement, dict):
-            return False
+    statement = statements[0]
+    if not isinstance(statement, dict):
+        return False
 
-        allowed_fields = {
-            "Sid", "Effect", "Principal", "Action", "Resource", "Condition"
-        }
-        if set(statement) - allowed_fields:
-            return False
-        if statement.get("Action") not in ("s3:*", ["s3:*"]):
-            return False
+    allowed_fields = {
+        "Sid", "Effect", "Principal", "Action", "Resource", "Condition"
+    }
+    if set(statement) - allowed_fields:
+        return False
+    if statement.get("Action") not in ("s3:*", ["s3:*"]):
+        return False
 
-        resources = statement.get("Resource")
-        if not isinstance(resources, list):
-            return False
-        if any(not isinstance(resource, str) for resource in resources):
-            return False
+    resources = statement.get("Resource")
+    if not isinstance(resources, list):
+        return False
+    if any(not isinstance(resource, str) for resource in resources):
+        return False
 
-        bucket_arn = f"arn:aws:s3:::{bucket}"
-        if set(resources) != {bucket_arn, f"{bucket_arn}/*"}:
-            return False
+    bucket_arn = f"arn:aws:s3:::{bucket}"
+    if set(resources) != {bucket_arn, f"{bucket_arn}/*"}:
+        return False
 
-        return check_https_policy(policy, bucket)
+    return check_https_policy(policy, bucket)
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Check an S3 bucket's public access block settings."
+        description="Check an S3 bucket against the lab security baseline."
     )
 
     parser.add_argument("--bucket", required=True)
@@ -157,7 +157,11 @@ def main():
         encryption_response = read_configuration("get-bucket-encryption")
         
         policy_response = read_configuration("get-bucket-policy")
-        policy = json.loads(policy_response["Policy"])
+        policy_text = policy_response.get("Policy")
+        if not isinstance(policy_text, str):
+            raise ValueError("Missing or invalid bucket policy response.")
+
+        policy = json.loads(policy_text)
         if not isinstance(policy, dict):
             raise ValueError("Unexpected bucket policy structure.")
         
@@ -175,7 +179,7 @@ def main():
         checks["HTTPSRequired"] = check_https_policy(
             policy, args.bucket
         )
-        checks["BucketPolicyMatchesBaseline"]= check_bucket_policy_baseline(
+        checks["BucketPolicyMatchesBaseline"] = check_bucket_policy_baseline(
             policy, args.bucket
         )
 

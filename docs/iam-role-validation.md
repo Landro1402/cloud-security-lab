@@ -124,8 +124,7 @@ A cleanup error overrides an earlier result with `2` and prints the affected key
 
 ## Test coverage
 
-The repository has 28 passing local tests.
-
+The repository has 32 passing local tests, including four tests for the S3 bucket policy baseline check.
 Configuration and result-classification tests cover expected settings,
 negative policy scenarios, unexpected successes and operational errors.
 

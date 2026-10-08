@@ -14,7 +14,7 @@ configuration checks and live authorization tests.
 | --- | --- |
 | S3 baseline | Bucket-level public access blocks, disabled ACLs, default SSE-S3 encryption and a policy denying insecure transport |
 | IAM reader role | Allows `s3:GetObject` only on the lab bucket's `training/*` prefix |
-| Configuration checker | Reads and checks seven S3 configuration settings |
+| Configuration checker | Runs eight checks covering public access, ownership, encryption, HTTPS enforcement and bucket policy baseline |
 | Authorization checker | Confirms the reader identity, downloads a known fixture and checks private-read and listing denials |
 | Experiment runner | Creates unique fixtures, runs all five permission scenarios and attempts cleanup |
 | Local tests | Test configuration interpretation and AWS result classification without contacting AWS |
@@ -87,12 +87,15 @@ Terraform state; the runner separately checks the operator's live account.
 python3 -m unittest discover -s tests -v
 ```
 
-The reviewed revision has 28 passing unit tests. They cover S3 baseline
+The reviewed revision has 32 passing unit tests. They cover S3 baseline
 checks, IAM result interpretation, and five runner scenarios using mocked
 AWS responses: successful execution, partial upload failure, cleanup
 failure, and unexpected reader upload or deletion permissions.
 
 Local tests do not validate a deployed account or cover every failure mode.
+Four additional tests verify bucket policy baseline matching, including
+additional Allow statements, protective Deny statements and unexpected resources.
+
 
 ## Exit codes
 
