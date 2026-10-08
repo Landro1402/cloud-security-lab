@@ -56,7 +56,7 @@ LAB_BUCKET=$(terraform -chdir=terraform output -raw bucket_name)
 python3 scripts/check_s3.py \
   --bucket "$LAB_BUCKET" \
   --account "$LAB_ACCOUNT_ID" \
-  --profile cloud-fabio \
+  --profile lab-operator \
   --region eu-north-1
 ```
 

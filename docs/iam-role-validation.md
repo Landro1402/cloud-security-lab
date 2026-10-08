@@ -70,8 +70,8 @@ LAB_BUCKET=$(terraform -chdir=terraform output -raw bucket_name)
 python3 scripts/run_iam_lab.py \
   --bucket "$LAB_BUCKET" \
   --account "$LAB_ACCOUNT_ID" \
-  --operator-profile cloud-fabio \
-  --reader-profile cloud-fabio-reader
+  --operator-profile lab-operator \
+  --reader-profile lab-reader
 ```
 
 No manual uploads are required for this runner.

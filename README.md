@@ -65,15 +65,15 @@ LAB_BUCKET=$(terraform -chdir=terraform output -raw bucket_name)
 python3 scripts/check_s3.py \
   --bucket "$LAB_BUCKET" \
   --account "$LAB_ACCOUNT_ID" \
-  --profile cloud-fabio \
+  --profile lab-operator \
   --region eu-north-1
 
 # Live experiment: creates and deletes synthetic objects.
 python3 scripts/run_iam_lab.py \
   --bucket "$LAB_BUCKET" \
   --account "$LAB_ACCOUNT_ID" \
-  --operator-profile cloud-fabio \
-  --reader-profile cloud-fabio-reader
+  --operator-profile lab-operator \
+  --reader-profile lab-reader
 ```
 
 The profile names above are examples matching the documented setup. Use your

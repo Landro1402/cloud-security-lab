@@ -1,6 +1,6 @@
 resource "aws_s3_bucket" "lab" {
 
-  bucket_prefix = "fabio-cloudsec-lab-"
+  bucket_prefix = var.bucket_prefix
   force_destroy = false
 }
 

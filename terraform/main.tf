@@ -24,6 +24,12 @@ variable "expected_account_id" {
   }
 }
 
+variable "bucket_prefix" {
+  description = "Prefix used to generate the lab bucket name"
+  type        = string
+  default     = "cloud-security-lab-"
+}
+
 provider "aws" {
   region              = "eu-north-1"
   profile             = var.aws_profile

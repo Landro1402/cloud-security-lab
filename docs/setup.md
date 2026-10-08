@@ -2,9 +2,9 @@
 
 [Back to the project overview](../README.md)
 
-Run commands from the repository root. Examples use `cloud-fabio` for the
-operator login, `cloud-fabio-terraform` for the credential-process bridge and
-`cloud-fabio-reader` for reader sessions. These are arbitrary local profile
+Run commands from the repository root. Examples use `lab-operator` for the
+operator login, `lab-terraform` for the credential-process bridge and
+`lab-reader` for reader sessions. These are arbitrary local profile
 names, not AWS permissions or account identities.
 
 ## 1. Check prerequisites
@@ -32,12 +32,12 @@ The role name is currently hardcoded; this is a portability limitation.
 ## 2. Authenticate the operator
 
 ```bash
-aws login --profile cloud-fabio
-aws sts get-caller-identity --profile cloud-fabio --no-cli-pager
+aws login --profile lab-operator
+aws sts get-caller-identity --profile lab-operator --no-cli-pager
 
 aws iam get-role \
   --role-name AccountFullAccessRole \
-  --profile cloud-fabio \
+  --profile lab-operator \
   --query 'Role.{Name:RoleName,Arn:Arn}' \
   --output json \
   --no-cli-pager
@@ -51,10 +51,10 @@ Configure the bridge used by Terraform and by role assumption:
 
 ```bash
 aws configure set credential_process \
-  "aws configure export-credentials --profile cloud-fabio --format process" \
-  --profile cloud-fabio-terraform
+  "aws configure export-credentials --profile lab-operator --format process" \
+  --profile lab-terraform
 
-aws configure set region eu-north-1 --profile cloud-fabio-terraform
+aws configure set region eu-north-1 --profile lab-terraform
 ```
 
 The bridge executes the AWS CLI to obtain temporary credentials from the login
@@ -65,9 +65,12 @@ profile. It does not create an IAM identity or grant additional permissions.
 Create `terraform/terraform.tfvars` locally:
 
 ```hcl
-aws_profile         = "cloud-fabio-terraform"
+aws_profile         = "lab-terraform"
 expected_account_id = "YOUR_12_DIGIT_ACCOUNT_ID"
+bucket_prefix       = "cloud-security-lab-"
 ```
+
+When adapting an existing deployment, preserve its original bucket prefix in the ignored local inputs to avoid planning a bucket replacement.
 
 Replace the account placeholder with the account verified in step 2.
 This file is ignored by Git. The provider's `allowed_account_ids` setting
@@ -101,13 +104,13 @@ Do not apply an old plan after editing the configuration; generate a new plan.
 ```bash
 READER_ROLE_ARN=$(terraform -chdir=terraform output -raw training_reader_role_arn)
 
-aws configure set role_arn "$READER_ROLE_ARN" --profile cloud-fabio-reader
-aws configure set source_profile cloud-fabio-terraform --profile cloud-fabio-reader
-aws configure set role_session_name fabio-training-reader --profile cloud-fabio-reader
-aws configure set region eu-north-1 --profile cloud-fabio-reader
-aws configure set output json --profile cloud-fabio-reader
+aws configure set role_arn "$READER_ROLE_ARN" --profile lab-reader
+aws configure set source_profile lab-terraform --profile lab-reader
+aws configure set role_session_name lab-reader-session --profile lab-reader
+aws configure set region eu-north-1 --profile lab-reader
+aws configure set output json --profile lab-reader
 
-aws sts get-caller-identity --profile cloud-fabio-reader --no-cli-pager
+aws sts get-caller-identity --profile lab-reader --no-cli-pager
 ```
 
 The ARN must identify an assumed session of
@@ -129,14 +132,14 @@ python3 -m unittest discover -s tests -v
 python3 scripts/check_s3.py \
   --bucket "$LAB_BUCKET" \
   --account "$LAB_ACCOUNT_ID" \
-  --profile cloud-fabio \
+  --profile lab-operator \
   --region eu-north-1
 
 python3 scripts/run_iam_lab.py \
   --bucket "$LAB_BUCKET" \
   --account "$LAB_ACCOUNT_ID" \
-  --operator-profile cloud-fabio \
-  --reader-profile cloud-fabio-reader
+  --operator-profile lab-operator \
+  --reader-profile lab-reader
 ```
 
 Check `echo $?` immediately after each checker or runner. Offline tests should
@@ -152,7 +155,7 @@ for the normal end-to-end workflow.
 
 | Symptom | Interpretation and next step |
 | --- | --- |
-| Expired login session | Run `aws login --profile cloud-fabio`, then check the operator identity and retry |
+| Expired login session | Run `aws login --profile lab-operator`, then check the operator identity and retry |
 | Wrong reader identity | Inspect the reader profile's role ARN and source profile; use GetCallerIdentity |
 | Unknown option `--formatprocess` | Correct the bridge command to `--format process` |
 | Empty versioning response | The runner accepts successful blank GetBucketVersioning output as an empty configuration; it does not accept blank identity responses |
@@ -168,7 +171,7 @@ First inspect any objects left by manual tests or interrupted runs:
 aws s3api list-objects-v2 \
   --bucket "$LAB_BUCKET" \
   --expected-bucket-owner "$LAB_ACCOUNT_ID" \
-  --profile cloud-fabio \
+  --profile lab-operator \
   --region eu-north-1 \
   --output json \
   --no-cli-pager
@@ -181,7 +184,7 @@ aws s3api delete-object \
   --bucket "$LAB_BUCKET" \
   --key "EXACT_SYNTHETIC_OBJECT_KEY" \
   --expected-bucket-owner "$LAB_ACCOUNT_ID" \
-  --profile cloud-fabio \
+  --profile lab-operator \
   --region eu-north-1 \
   --no-cli-pager
 ```
