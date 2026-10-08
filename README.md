@@ -87,9 +87,12 @@ Terraform state; the runner separately checks the operator's live account.
 python3 -m unittest discover -s tests -v
 ```
 
-The reviewed revision has 23 passing unit tests. They cover S3 baseline checks
-and IAM result interpretation. They do not yet cover the full runner's
-orchestration and cleanup paths. Local tests do not validate a deployed account.
+The reviewed revision has 28 passing unit tests. They cover S3 baseline
+checks, IAM result interpretation, and five runner scenarios using mocked
+AWS responses: successful execution, partial upload failure, cleanup
+failure, and unexpected reader upload or deletion permissions.
+
+Local tests do not validate a deployed account or cover every failure mode.
 
 ## Exit codes
 
@@ -153,6 +156,6 @@ For fixture cleanup, verification and infrastructure removal, follow the
 
 ## Next work
 
-- Test runner failure handling and cleanup with mocked AWS responses.
+- Extend runner tests to timeouts, preflight failures and interrupted execution.
 - Run offline checks in continuous integration.
 - Add structured validation reports and independently verified cleanup results.

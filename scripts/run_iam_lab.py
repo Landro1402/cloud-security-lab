@@ -6,8 +6,10 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
-from check_iam_access import TEST_CONTENT, check_result, run_aws
-
+if __package__:
+    from .check_iam_access import TEST_CONTENT, check_result, run_aws
+else:
+    from check_iam_access import TEST_CONTENT, check_result, run_aws
 
 ERRORS = (
     OSError,

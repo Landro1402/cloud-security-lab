@@ -98,6 +98,17 @@ These are observations from the reported run. The runner does not independently
 list or HEAD the keys after cleanup, so its cleanup messages establish successful
 delete requests rather than a separate verification of the final bucket state.
 
+### Independent cleanup verification
+
+On 8 October 2026, separate operator ListObjectsV2 requests inspected
+`training/iam-check-` and `private/iam-check-`.
+
+Both returned `KeyCount: 0` and `IsTruncated: false`, confirming no current
+objects remained under the runner's fixture prefixes at verification time.
+
+This does not establish that the entire bucket was empty. Earlier manual
+fixtures use different keys.
+
 ### Exit codes and failure interpretation
 
 | Code | Meaning |
@@ -113,12 +124,21 @@ A cleanup error overrides an earlier result with `2` and prints the affected key
 
 ## Test coverage
 
-Offline tests cover the configuration checker and IAM result classification,
-including unexpected successes, expired-session messages, network failures and
-NoSuchKey responses. The reviewed repository has 23 passing local tests.
+The repository has 28 passing local tests.
 
-The full runner's orchestration, partial uploads and cleanup failure paths do
-not yet have dedicated unit tests. Live success does not cover those scenarios.
+Configuration and result-classification tests cover expected settings,
+negative policy scenarios, unexpected successes and operational errors.
+
+Five tests in `tests/test_iam_runner.py` verify:
+- Successful execution uses the reader profile and cleans up the run's keys.
+- A partial fixture upload failure still triggers cleanup.
+- A cleanup failure returns an error while remaining keys are still attempted.
+- Unexpected reader upload permission returns exit code 1 and triggers cleanup.
+- Unexpected reader deletion permission returns exit code 1 and triggers cleanup.
+
+AWS requests and the child checker are mocked. These tests verify runner
+control flow without contacting AWS. Timeouts, interrupted execution and
+additional preflight failures are not yet covered by these runner tests.
 
 ## Boundaries and failure scenarios
 
