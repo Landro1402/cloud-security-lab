@@ -1,60 +1,58 @@
 # IAM Least-Privilege Policy Simulation
 
-## Scenario
+[Back to the project overview](../README.md) · [Live role validation](iam-role-validation.md)
 
-An application needs to read objects with known keys under the
-training/ prefix of an S3 bucket.
+## Purpose
 
-It does not need to upload or delete objects, read objects outside
-that prefix, or list the bucket contents.
+This was the first IAM experiment, recorded on 7 October 2026. It evaluated
+an identity-policy proposal before creating the reader role. The subsequent
+[live experiment](iam-role-validation.md) implements and tests that design.
 
-## Policy design
+A document consumer needs known objects under `training/*`, but does not need
+private documents, uploads, deletion or bucket listing.
 
-The example identity policy grants only s3:GetObject on:
+## Policy
 
+The [example JSON](../policies/training-reader-policy.json.example) allows only
+`s3:GetObject` on:
+
+```text
 arn:aws:s3:::YOUR_BUCKET_NAME/training/*
+```
 
-Reading an object and listing a bucket are separate permissions.
-An application that knows the object key can request it without
-being granted s3:ListBucket.
+Replace the placeholder before simulation. This example file is illustrative;
+Terraform generates the deployed role policy directly in `terraform/iam.tf`.
+It does not load or attach the example JSON file.
 
-## Observed simulation results
+## Recorded simulation results
 
-Tests performed with AWS IAM SimulateCustomPolicy on 7 October 2026.
+AWS IAM SimulateCustomPolicy evaluated the supplied identity policy:
 
-| Action | Resource | Decision |
-|---|---|---|
-| s3:GetObject | training/sample.txt | allowed |
-| s3:GetObject | private/sample.txt | implicitDeny |
-| s3:PutObject | training/sample.txt | implicitDeny |
-| s3:DeleteObject | training/sample.txt | implicitDeny |
-| s3:ListBucket | Bucket ARN | implicitDeny |
+| Action | Resource scope | Decision |
+| --- | --- | --- |
+| `s3:GetObject` | `training/sample.txt` object ARN | `allowed` |
+| `s3:GetObject` | `private/sample.txt` object ARN | `implicitDeny` |
+| `s3:PutObject` | `training/sample.txt` object ARN | `implicitDeny` |
+| `s3:DeleteObject` | `training/sample.txt` object ARN | `implicitDeny` |
+| `s3:ListBucket` | Bucket ARN | `implicitDeny` |
 
-## Interpretation
+`implicitDeny` means no applicable Allow exists in the evaluated policy.
+It is different from an explicit Deny. Another applicable policy could grant
+additional access, subject to the other controls evaluated by AWS.
 
-The policy grants the required read operation within the specified
-prefix and does not grant the other tested operations.
+`ListBucket` authorizes listing object keys within a bucket. Listing account
+buckets uses a separate permission, `s3:ListAllMyBuckets`.
 
-implicitDeny means that the evaluated policy does not provide an
-applicable Allow. It is not an explicit Deny.
+## What this did and did not establish
 
-Other policies associated with an identity could grant additional
-permissions.
+The simulation confirmed the intended decisions for the supplied policy and
+chosen action/resource combinations. No objects needed to exist for that step.
 
-## Limitations
+During this historical experiment, the policy was not attached to an identity
+and no S3 operation was executed. The bucket policy, other identity policies,
+permissions boundaries and organization controls were not included. The results
+therefore did not establish the operator's effective permissions.
 
-Only the supplied identity policy was evaluated.
-
-The policy was not attached to a dedicated application role.
-The simulations did not execute operations against S3.
-
-The bucket policy, other identity policies, permissions boundaries
-and organization controls were not included in these simulations.
-
-These results do not establish the effective permissions of the
-deployment role or prove least privilege in a live application.
-
-## Next step
-
-Evaluate the policy using a dedicated role and temporary credentials,
-then test both permitted and denied operations against real objects.
+The next step is now complete: Terraform provisions a dedicated reader role,
+and the [live IAM runner](iam-role-validation.md) tests real requests using its
+temporary credentials. Simulation results and live results remain separate evidence.

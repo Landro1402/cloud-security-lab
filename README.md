@@ -1,252 +1,74 @@
 # AWS Cloud Security Lab
 
-Hands-on AWS security project combining Infrastructure as Code,
-automated configuration checks and documented validation results.
-
-## Objective
-
-Build a reproducible S3 security baseline, verify its configuration
-and test basic access behaviour.
-
-The project demonstrates Terraform deployment, AWS CLI operations,
-Python automation and security testing.
-
-## Architecture
-
-A single S3 bucket deployed in Europe (Stockholm), `eu-north-1`,
-with four security controls:
-
-| Control | Configuration |
-|---|---|
-| Public access protection | All four bucket-level Block Public Access settings enabled |
-| Object ownership | BucketOwnerEnforced, disabling ACLs |
-| Encryption at rest | Default SSE-S3 encryption using AES256 |
-| Encryption in transit | Bucket policy explicitly denying non-HTTPS requests |
-
-Terraform authenticates through an AWS CLI profile using temporary
-credentials. No credentials are stored in the repository.
-
-## Project structure
-
-- `terraform/`: infrastructure configuration and provider lock file.
-- `scripts/`: read-only Python configuration checker.
-- `tests/`: local unit tests using synthetic configurations.
-- `docs/`: validation results, security decisions and limitations.
-
-## Prerequisites
-
-- Terraform >= 1.5 and < 2.0.
-- Python 3.
-- AWS CLI v2 with an authenticated profile.
-- AWS permissions to provision and inspect the lab resources.
-
-The Python checker and tests use only the standard library.
-
-## Deployment
-
-Create a local `terraform/terraform.tfvars` file:
-
-```hcl
-aws_profile         = "YOUR_TERRAFORM_AWS_PROFILE"
-expected_account_id = "YOUR_12_DIGIT_ACCOUNT_ID"
-```
-
-The profile must support authentication by the Terraform AWS provider.
-For AWS CLI login sessions, this project uses a credential_process
-profile that retrieves temporary credentials through the AWS CLI.
-
-The provider restricts operations to the specified account.
-Local variable files, Terraform state and saved plans are excluded
-from Git.
-
-From the repository root:
-
-```bash
-terraform -chdir=terraform init
-terraform -chdir=terraform fmt -check
-terraform -chdir=terraform validate
-terraform -chdir=terraform plan -out=s3-baseline.tfplan
-```
-
-Review the plan before deploying. For a fresh deployment, the expected
-result is five resources to add: one bucket and four associated
-configurations.
-
-Apply the reviewed plan:
-
-```bash
-terraform -chdir=terraform apply s3-baseline.tfplan
-```
-
-Applying a saved plan executes it without an additional confirmation
-prompt. AWS usage may consume credits or incur charges, depending on
-the account plan.
-
-Retrieve the bucket name:
-
-```bash
-terraform -chdir=terraform output -raw bucket_name
-```
-
-## Automated configuration checks
-
-The checker reads AWS configuration and verifies:
-
-- BlockPublicAcls is enabled.
-- IgnorePublicAcls is enabled.
-- BlockPublicPolicy is enabled.
-- RestrictPublicBuckets is enabled.
-- Object ownership is BucketOwnerEnforced.
-- Default encryption uses AES256.
-- A bucket policy explicitly denies non-HTTPS requests for both
-  the bucket and all its objects.
-
-Run from the repository root:
-
-```bash
-LAB_BUCKET=$(terraform -chdir=terraform output -raw bucket_name)
-
-python3 scripts/check_s3.py \
-  --bucket "$LAB_BUCKET" \
-  --account YOUR_ACCOUNT_ID \
-  --profile YOUR_AWS_PROFILE \
-  --region eu-north-1
-```
-
-Exit codes:
-
-| Code | Meaning |
-|---|---|
-| `0` | All implemented checks passed |
-| `1` | At least one configuration does not match the baseline |
-| `2` | The checks could not be completed |
-
-AWS request failures, including expired login sessions, are reported
-as errors rather than successful checks.
-
-## Local tests
-
-Tests run without AWS credentials or network access:
-
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-They cover expected configurations and negative scenarios, including:
-
-- Disabled or missing public access block settings.
-- Strings incorrectly used in place of boolean values.
-- Ownership settings outside the expected baseline.
-- Missing encryption settings or a different encryption algorithm.
-- An Allow statement instead of the required Deny.
-- Missing bucket or object coverage in the HTTPS policy.
-- Additional conditions that narrow the transport restriction.
-- Limited actions or a policy referencing another bucket.
-
-## Observed results
-
-Validation performed on 7 October 2026:
-
-| Check | Result |
-|---|---|
-| Terraform validation | Passed |
-| AWS deployment | Five resources added |
-| Post-deployment Terraform plan | No changes |
-| Authenticated object upload | Successful; AES256 confirmed |
-| Authenticated object download | Successful; content identical to original |
-| Anonymous object download | AccessDenied |
-| Test object cleanup | Deleted; bucket confirmed empty |
-| Automated configuration checks | Seven PASS results; exit code 0 |
-| Local unit tests | Eighteen tests passed |
-
-See [validation results and limitations](docs/s3-baseline.md)
-for additional details.
-
-## Scope and limitations
-
-This is a focused configuration baseline, not a complete S3 security
-assessment.
-
-The deployment identity uses a broadly privileged role. Successful
-authenticated operations do not demonstrate least-privilege access
-for an application.
-
-The anonymous access test verifies that the tested object could not
-be downloaded anonymously under the tested conditions.
-
-The encryption check expects this project's SSE-S3 baseline.
-SSE-KMS does not match that baseline, but is not inherently insecure.
-
-The HTTPS check inspects the explicit deny pattern used by this
-project. It does not send HTTP requests or implement a complete IAM
-policy evaluator. Equivalent policies expressed differently may
-not be recognised.
-
-Versioning, recovery, access logging, customer-managed KMS keys and
-application-specific IAM permissions are outside the current scope.
-
-## Cleanup
-
-Remove any test objects before deleting the infrastructure.
-
-The bucket uses `force_destroy = false`, preventing Terraform from
-automatically deleting stored objects during cleanup.
-
-Review the destruction plan:
-
-```bash
-terraform -chdir=terraform plan -destroy
-```
-
-Then remove the lab resources:
-
-```bash
-terraform -chdir=terraform destroy
-```
-
-Review the resources listed in the confirmation prompt before
-approving destruction.
-
-## IAM least-privilege exercise
-
-Designed and simulated an identity policy allowing object reads
-only under the training/ prefix.
-
-Five scenarios produced the expected decisions: one allowed read
-and four implicit denials.
-
-See [policy design, results and limitations](docs/iam-least-privilege.md)
-and the [example policy](policies/training-reader-policy.json.example).
-
-The policy has not yet been attached to an application role.
-
-## Next steps
-
-- Design and evaluate a least-privilege S3 application policy.
-- Automate local tests through continuous integration.
-- Extend the checker with structured reports and additional
-  error-handling tests.   
-
-
-## IAM Least-Privilege Lab
-
-Provisioned a dedicated S3 reader role with Terraform and validated
-its permissions using temporary AWS STS credentials.
-
-The role can retrieve training objects but cannot read private
-objects, upload files, delete objects, or list the bucket.
-
-See [IAM design, validation and limitations](docs/iam-role-validation.md).
-
-## Run the IAM Authorization Experiment
-
-Requires Python 3, AWS CLI, deployed Terraform resources, and configured
-operator and reader profiles.
+A hands-on lab for deploying a secure S3 baseline and verifying a restricted
+IAM reader role with Terraform, AWS CLI and Python.
+
+The application scenario is deliberately small: a consumer needs to download
+known training documents, without reading private documents, changing objects
+or browsing the bucket. The project connects that requirement to permissions,
+configuration checks and live authorization tests.
+
+## What is implemented
+
+| Component | Behaviour |
+| --- | --- |
+| S3 baseline | Bucket-level public access blocks, disabled ACLs, default SSE-S3 encryption and a policy denying insecure transport |
+| IAM reader role | Allows `s3:GetObject` only on the lab bucket's `training/*` prefix |
+| Configuration checker | Reads and checks seven S3 configuration settings |
+| Authorization checker | Confirms the reader identity, downloads a known fixture and checks private-read and listing denials |
+| Experiment runner | Creates unique fixtures, runs all five permission scenarios and attempts cleanup |
+| Local tests | Test configuration interpretation and AWS result classification without contacting AWS |
+
+The lab region is `eu-north-1` (Stockholm). The current Terraform configuration
+manages **seven resources**: five S3 resources, one IAM role and its inline policy.
+The existing operator role is read through a data source, not created by this lab.
+
+## Design in brief
+
+The operator deploys and inspects infrastructure, prepares fixtures and cleans
+up test objects. The reader receives temporary STS credentials and performs
+only the requests whose permissions are being tested.
+
+A trust policy controls who may assume the reader role. A separate permissions
+policy grants access to training objects. CLI profile names are local labels;
+AWS authorizes requests using credentials and policies.
+
+| Reader request | Expected result in the lab configuration |
+| --- | --- |
+| Download a training object | Allowed |
+| Download a private object | AccessDenied |
+| Upload an object | AccessDenied |
+| Delete an object | AccessDenied |
+| List objects in the bucket | AccessDenied |
+
+Reading a known object and listing object keys are separate permissions.
+The unwanted actions have no applicable Allow in the tested configuration;
+the reader policy does not explicitly deny them.
+
+## Getting started
+
+Requirements: Terraform `>= 1.5, < 2.0`, Python 3, AWS CLI v2 and suitable AWS
+permissions. Python scripts use only the standard library.
+
+**Start with [setup and deployment](docs/setup.md).** It covers authentication,
+the existing operator-role prerequisite, local variables and the reader profile.
+The current configuration is tailored to an account containing
+`AccountFullAccessRole`; it is not a drop-in deployment for every AWS account.
+
+Once deployed and authenticated, run these commands from the repository root:
 
 ```bash
 LAB_ACCOUNT_ID=$(terraform -chdir=terraform output -raw authenticated_account)
 LAB_BUCKET=$(terraform -chdir=terraform output -raw bucket_name)
 
+# Read-only S3 configuration verification; use an inspection-capable profile.
+python3 scripts/check_s3.py \
+  --bucket "$LAB_BUCKET" \
+  --account "$LAB_ACCOUNT_ID" \
+  --profile cloud-fabio \
+  --region eu-north-1
+
+# Live experiment: creates and deletes synthetic objects.
 python3 scripts/run_iam_lab.py \
   --bucket "$LAB_BUCKET" \
   --account "$LAB_ACCOUNT_ID" \
@@ -254,7 +76,83 @@ python3 scripts/run_iam_lab.py \
   --reader-profile cloud-fabio-reader
 ```
 
-The runner creates unique synthetic objects, validates the reader's
-permissions, and attempts cleanup.
+The profile names above are examples matching the documented setup. Use your
+own names consistently if you change them. Shell variables must be recreated
+in each new terminal session. `authenticated_account` is read from local
+Terraform state; the runner separately checks the operator's live account.
 
-See [design, results and limitations](docs/iam-role-validation.md).
+## Local tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The reviewed revision has 23 passing unit tests. They cover S3 baseline checks
+and IAM result interpretation. They do not yet cover the full runner's
+orchestration and cleanup paths. Local tests do not validate a deployed account.
+
+## Exit codes
+
+| Code | Configuration checker | IAM checker / runner |
+| --- | --- | --- |
+| `0` | All implemented checks passed | All checks passed; the runner's cleanup requests also succeeded |
+| `1` | A setting differs from the baseline | An expected denial succeeded, or downloaded content differed |
+| `2` | Checks could not complete | Wrong identity, failed required operation, execution error or runner cleanup error |
+
+An expired session or connection failure is an execution error, not proof of
+an authorization denial. The IAM checks classify `(AccessDenied)` in CLI stderr;
+this is a practical lab check, not a general structured AWS error parser.
+
+## Repository guide
+
+| Path | Purpose |
+| --- | --- |
+| `terraform/` | S3 and IAM configuration; committed provider lock file |
+| `scripts/check_s3.py` | Read-only S3 configuration checks |
+| `scripts/check_iam_access.py` | Read/list checks against existing synthetic fixtures |
+| `scripts/run_iam_lab.py` | Fixture preparation, authorization experiment and cleanup |
+| `tests/` | Offline unit tests |
+| `policies/` | Example policy for the historical IAM simulation |
+| `docs/` | Setup, design decisions, recorded results and limitations |
+
+## Evidence and documentation
+
+- [Setup and deployment](docs/setup.md): reproduce the current lab.
+- [S3 baseline](docs/s3-baseline.md): control rationale and validation recorded on 7 October 2026.
+- [IAM simulation](docs/iam-least-privilege.md): the initial supplied-policy experiment.
+- [Live IAM validation](docs/iam-role-validation.md): role design, manual checks and automated experiment recorded on 8 October 2026.
+
+Recorded results describe specific runs, not a guarantee about the account's
+current state. Rerun the checks to establish current behaviour.
+
+## Scope and limitations
+
+- This is a learning lab, not a complete production security assessment.
+- The operator retains broad permissions; the reader role does not protect
+  against compromise of administrative credentials.
+- Reader sessions can access any object whose key they know or guess under
+  `training/*`. New content placed there enters the permitted scope.
+- S3 configuration checks are distinct from live authorization tests. The HTTPS
+  check inspects a particular deny pattern; no actual HTTP rejection test is implemented.
+- The AES256 check matches this SSE-S3 baseline. SSE-KMS is not inherently insecure.
+- Versioning, recovery, access logging, customer-managed KMS and a deployed
+  application's identity mechanism are outside the implemented scope.
+- The runner requires a bucket that has never had versioning enabled. Cleanup
+  is attempted, but forced termination, expired credentials or connectivity
+  failures can leave fixtures behind.
+
+## Costs and teardown
+
+Live checks make AWS API requests. The runner temporarily stores small objects;
+free-plan eligibility, credits and charges depend on the account. No EC2
+instances, NAT gateways or customer-managed KMS keys are provisioned here.
+
+For fixture cleanup, verification and infrastructure removal, follow the
+[teardown instructions](docs/setup.md#teardown). The bucket uses
+`force_destroy = false`; Terraform will not automatically empty it.
+
+## Next work
+
+- Test runner failure handling and cleanup with mocked AWS responses.
+- Run offline checks in continuous integration.
+- Add structured validation reports and independently verified cleanup results.

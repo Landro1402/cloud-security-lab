@@ -1,91 +1,67 @@
-# IAM Least-Privilege Role: Design and Validation
+# IAM Reader Role: Design and Live Validation
+
+[Back to the project overview](../README.md) · [Setup](setup.md) · [Initial simulation](iam-least-privilege.md)
 
 ## Problem
 
-A document-consuming application needs to retrieve training files
-from an S3 bucket. It does not need access to private documents,
-object modification, deletion, or bucket listing.
+A document consumer needs to retrieve known training objects. It has no
+requirement to read private documents, modify objects or discover object keys.
+The lab turns this requirement into a restricted role and tests its behaviour.
 
-The objective is to grant only the access required for that task
-and verify the resulting permissions with real AWS requests.
+## Identity and authorization design
 
-## Design
-
-Terraform provisions a dedicated IAM role and an inline permissions
-policy allowing `s3:GetObject` on the lab bucket's `training/*` prefix.
-
-The role's trust policy allows the existing lab operator role to
-assume it. AWS STS issues temporary credentials for the reader session.
-
-Two AWS CLI profiles separate administrative operations from
-restricted reader operations. Profile names are local configuration
-labels; AWS authorizes requests using credentials and policies.
-
-## Design Decisions and Trade-Offs
-
-- Prefix-scoped access permits reading training documents while
-  excluding objects under other prefixes.
-- Bucket listing is omitted because the consumer knows the object keys.
-  This prevents discovery through ListObjectsV2 but does not hide known keys.
-- Write and delete permissions are omitted because they are unnecessary
-  for a read-only consumer.
-- Temporary role credentials avoid creating long-lived IAM user keys.
-- Terraform makes the intended configuration reproducible and reviewable.
-- An inline policy keeps this small lab's permissions attached directly
-  to its dedicated role.
-
-## Validation
-
-Synthetic objects were uploaded under both `training/` and `private/`
-using the administrative profile.
-
-The reader identity was confirmed using STS GetCallerIdentity before
-performing authorization tests.
-
-| Request using the reader role | Observed result |
+| Element | Purpose |
 | --- | --- |
-| GetObject on training/iam-test.txt | Allowed |
-| GetObject on private/iam-test.txt | AccessDenied |
-| PutObject under training/ | AccessDenied |
-| DeleteObject on training/iam-test.txt | AccessDenied |
+| Existing operator role | Deploys infrastructure, prepares fixtures and performs cleanup |
+| Reader trust policy | Allows the existing `AccountFullAccessRole` to assume the reader role |
+| Reader inline policy | Allows `s3:GetObject` only on the lab bucket's `training/*` |
+| STS session | Supplies temporary reader credentials used for permission tests |
+| Local CLI profiles | Select credential sources and the role to assume; names do not grant permissions |
+
+Terraform reads the operator's actual IAM ARN, including its path, and creates
+`cloud-security-lab-training-reader` plus its inline policy. The operator is
+not created or restricted by this configuration.
+
+The local source profile obtains operator credentials and uses them to request
+a reader session. Requests made using the reader session have the reader's
+permissions, not the union of reader and operator permissions.
+
+## Decisions and trade-offs
+
+- Prefix-scoped reads meet the consumer's requirement. Any new object under
+  `training/*` enters that scope, including sensitive content mistakenly placed there.
+- Omitting `ListBucket` avoids unnecessary discovery of object names. Known
+  or guessed keys can still be read if they fall within the allowed prefix.
+- Upload and deletion are not granted. In the tested configuration, those
+  operations lack an applicable Allow; there is no explicit reader Deny.
+- Temporary credentials avoid creating permanent IAM user keys, but stolen
+  reader credentials remain useful during their validity unless blocked.
+- An inline policy keeps permissions attached to one dedicated lab role.
+  Other applicable policies could change effective permissions.
+- Human role assumption demonstrates the boundary. A deployed application
+  would need a dedicated workload identity and appropriate trust relationship.
+
+## Recorded manual validation: 8 October 2026
+
+The operator created synthetic objects at `training/iam-test.txt` and
+`private/iam-test.txt`. STS GetCallerIdentity confirmed the reader session
+before testing. The downloaded training content matched the original.
+
+| Reader request | Observed result |
+| --- | --- |
+| GetObject on the training fixture | Allowed |
+| GetObject on the private fixture | AccessDenied |
+| PutObject under the training prefix | AccessDenied |
+| DeleteObject on the training fixture | AccessDenied |
 | ListObjectsV2 on the bucket | AccessDenied |
 
-The downloaded training object matched the original local file.
+Manual fixtures were removed after the first experiment. Later standalone
+checker exercises recreated them; the automated runner does not remove those
+older keys. Inspect the bucket rather than assuming it is currently empty.
 
-Test objects were removed using the administrative profile after
-validation.
+## Automated experiment
 
-## Limitations and Failure Scenarios
-
-- This is a manually validated lab, not a production deployment.
-- The operator retains administrative access and can assume the reader role.
-- Compromise of reader credentials exposes readable training objects
-  during the credentials' validity.
-- Compromise of administrative credentials can bypass the reader's
-  restrictions or modify the infrastructure.
-- New objects under training/ fall within the permission scope.
-- Unwanted actions are denied because no applicable Allow grants them
-  in the tested configuration, rather than through explicit Deny statements.
-- Additional policies or changes to resource policies may alter
-  effective permissions.
-- The CLI setup demonstrates role assumption by a human operator.
-  A deployed workload would need its own appropriate identity mechanism.
-
-
-## Automated Authorization Experiment
-
-`scripts/run_iam_lab.py` performs a complete live authorization experiment:
-
-1. Verifies the operator account and reader identity.
-2. Checks that bucket versioning has never been enabled.
-3. Creates synthetic training and private objects with unique keys.
-4. Runs the read and list checker.
-5. Tests that reader uploads and deletion are denied.
-6. Attempts cleanup of all objects belonging to the run.
-
-The uploader and checker share one content definition.
-
-Run from the repository root:
+Run after completing [setup](setup.md), from the repository root:
 
 ```bash
 LAB_ACCOUNT_ID=$(terraform -chdir=terraform output -raw authenticated_account)
@@ -98,32 +74,65 @@ python3 scripts/run_iam_lab.py \
   --reader-profile cloud-fabio-reader
 ```
 
-### Results
+No manual uploads are required for this runner.
 
-A complete run returned exit code 0:
-- Training download succeeded and its content matched.
-- Private reading, listing, upload and deletion returned AccessDenied.
-- Cleanup requests succeeded for all three possible object keys.
+1. Check the operator account, expected reader role and versioning response.
+2. Generate a UUID and create unique training/private fixture keys.
+3. Upload both fixtures as the operator using the shared `TEST_CONTENT` bytes.
+4. Invoke `check_iam_access.py` to verify identity, training content, private
+   read denial and bucket-listing denial.
+5. Attempt an upload and a deletion using reader credentials.
+6. Attempt operator cleanup of all three possible keys in a `finally` block.
 
-### Exit Codes
+The reader's attempted deletion targets only this run's synthetic training
+object. The upload target is also included in cleanup in case upload
+unexpectedly succeeds. Temporary local files are removed automatically.
 
-- 0: All checks passed and cleanup requests succeeded.
-- 1: A permission or content check failed.
-- 2: An execution or cleanup error prevented reliable completion.
+### Recorded automated result: 8 October 2026
 
-### Scope and Limitations
+Run `4d33e46b1ad14e48bfa781da00f75047` returned `0`. Fixture creation succeeded,
+the reader checks matched expectations, upload and deletion were denied,
+and cleanup requests succeeded for all three possible keys.
 
-The runner tests selected actions and resources; it is not a complete
-evaluation of every possible permission.
+These are observations from the reported run. The runner does not independently
+list or HEAD the keys after cleanup, so its cleanup messages establish successful
+delete requests rather than a separate verification of the final bucket state.
 
-Cleanup targets only this run's unique keys. It does not remove fixtures
-from earlier manual tests.
+### Exit codes and failure interpretation
 
-Cleanup is attempted after handled failures, but cannot be guaranteed
-after forced termination, credential expiry or connectivity loss.
+| Code | Meaning |
+| --- | --- |
+| `0` | All implemented checks passed and cleanup requests succeeded |
+| `1` | An operation expected to be denied succeeded, or downloaded content differed |
+| `2` | Preflight failure, a required operation failed, execution error or cleanup error |
 
-This implementation requires an unversioned bucket. Successful blank
-GetBucketVersioning output is normalized to an empty configuration.
+A training read failure currently returns `2`, even if its cause is AccessDenied:
+it is treated as failure of a required operation. Expected negative checks pass
+only when the CLI stderr contains `(AccessDenied)`; other errors are not passes.
+A cleanup error overrides an earlier result with `2` and prints the affected key.
 
-Existing unit tests cover checker logic and result interpretation.
-The orchestration and cleanup paths do not yet have dedicated unit tests.
+## Test coverage
+
+Offline tests cover the configuration checker and IAM result classification,
+including unexpected successes, expired-session messages, network failures and
+NoSuchKey responses. The reviewed repository has 23 passing local tests.
+
+The full runner's orchestration, partial uploads and cleanup failure paths do
+not yet have dedicated unit tests. Live success does not cover those scenarios.
+
+## Boundaries and failure scenarios
+
+- The operator retains broad access. Compromise of its credentials can bypass
+  the reader boundary or modify the infrastructure.
+- The experiment checks selected requests in the current configuration; it
+  does not prove absence of every other AWS permission.
+- The operator preflight checks its account, not a complete permission inventory.
+- The runner accepts an empty successful GetBucketVersioning response as an
+  empty configuration. Enabled and Suspended status both stop the experiment.
+- Cleanup targets the run's exact keys, leaving other objects alone. It is
+  attempted after handled failures but may fail after credential expiry,
+  connectivity loss or forced process termination.
+- SSE-S3 is part of the current baseline. The tests do not address permissions
+  and additional failure modes introduced by customer-managed KMS keys.
+
+For leftover fixtures and resource removal, follow [teardown](setup.md#teardown).
