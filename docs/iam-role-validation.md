@@ -70,3 +70,20 @@ validation.
   effective permissions.
 - The CLI setup demonstrates role assumption by a human operator.
   A deployed workload would need its own appropriate identity mechanism.
+
+
+## Automated Read and List Checks
+
+`scripts/check_iam_access.py` verifies the reader identity,
+retrieves a training object, compares its contents, and checks
+that private reads and bucket listing return AccessDenied.
+
+This version requires pre-created synthetic fixtures at:
+- training/iam-test.txt
+- private/iam-test.txt
+
+It does not yet automate upload denial, deletion denial,
+fixture preparation, or remote cleanup.
+
+Local unit tests verify that unexpected successes fail and
+operational errors are not mistaken for expected permission denials.
