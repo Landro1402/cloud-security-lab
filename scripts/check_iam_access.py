@@ -4,6 +4,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+TEST_CONTENT = b"Synthetic data for IAM least-privilege testing.\n"
 
 def run_aws(arguments, profile, region):
     return subprocess.run(
@@ -52,6 +53,8 @@ def main():
     parser.add_argument("--account", required=True)
     parser.add_argument("--profile", required=True)
     parser.add_argument("--region", default="eu-north-1")
+    parser.add_argument("--training-key", default="training/iam-test.txt")
+    parser.add_argument("--private-key", default="private/iam-test.txt")
     args = parser.parse_args()
 
     try:
@@ -93,7 +96,7 @@ def main():
                 [
                     "s3api", "get-object",
                     *bucket_arguments,
-                    "--key", "training/iam-test.txt",
+                    "--key", args.training_key,
                     str(training_file),
                 ],
                 args.profile,
@@ -104,11 +107,8 @@ def main():
                 check_result("Training object readable", training)
             ]
 
-            expected_content = (
-                b"Synthetic data for IAM least-privilege testing.\n"
-            )
             content_matches = (
-                training_file.read_bytes() == expected_content
+                training_file.read_bytes() == TEST_CONTENT
             )
             print(
                 f"{'PASS' if content_matches else 'FAIL'}: "
@@ -120,7 +120,7 @@ def main():
                 [
                     "s3api", "get-object",
                     *bucket_arguments,
-                    "--key", "private/iam-test.txt",
+                    "--key", args.private_key,
                     str(private_file),
                 ],
                 args.profile,

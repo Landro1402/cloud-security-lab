@@ -237,3 +237,24 @@ The role can retrieve training objects but cannot read private
 objects, upload files, delete objects, or list the bucket.
 
 See [IAM design, validation and limitations](docs/iam-role-validation.md).
+
+## Run the IAM Authorization Experiment
+
+Requires Python 3, AWS CLI, deployed Terraform resources, and configured
+operator and reader profiles.
+
+```bash
+LAB_ACCOUNT_ID=$(terraform -chdir=terraform output -raw authenticated_account)
+LAB_BUCKET=$(terraform -chdir=terraform output -raw bucket_name)
+
+python3 scripts/run_iam_lab.py \
+  --bucket "$LAB_BUCKET" \
+  --account "$LAB_ACCOUNT_ID" \
+  --operator-profile cloud-fabio \
+  --reader-profile cloud-fabio-reader
+```
+
+The runner creates unique synthetic objects, validates the reader's
+permissions, and attempts cleanup.
+
+See [design, results and limitations](docs/iam-role-validation.md).

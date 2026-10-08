@@ -72,18 +72,58 @@ validation.
   A deployed workload would need its own appropriate identity mechanism.
 
 
-## Automated Read and List Checks
+## Automated Authorization Experiment
 
-`scripts/check_iam_access.py` verifies the reader identity,
-retrieves a training object, compares its contents, and checks
-that private reads and bucket listing return AccessDenied.
+`scripts/run_iam_lab.py` performs a complete live authorization experiment:
 
-This version requires pre-created synthetic fixtures at:
-- training/iam-test.txt
-- private/iam-test.txt
+1. Verifies the operator account and reader identity.
+2. Checks that bucket versioning has never been enabled.
+3. Creates synthetic training and private objects with unique keys.
+4. Runs the read and list checker.
+5. Tests that reader uploads and deletion are denied.
+6. Attempts cleanup of all objects belonging to the run.
 
-It does not yet automate upload denial, deletion denial,
-fixture preparation, or remote cleanup.
+The uploader and checker share one content definition.
 
-Local unit tests verify that unexpected successes fail and
-operational errors are not mistaken for expected permission denials.
+Run from the repository root:
+
+```bash
+LAB_ACCOUNT_ID=$(terraform -chdir=terraform output -raw authenticated_account)
+LAB_BUCKET=$(terraform -chdir=terraform output -raw bucket_name)
+
+python3 scripts/run_iam_lab.py \
+  --bucket "$LAB_BUCKET" \
+  --account "$LAB_ACCOUNT_ID" \
+  --operator-profile cloud-fabio \
+  --reader-profile cloud-fabio-reader
+```
+
+### Results
+
+A complete run returned exit code 0:
+- Training download succeeded and its content matched.
+- Private reading, listing, upload and deletion returned AccessDenied.
+- Cleanup requests succeeded for all three possible object keys.
+
+### Exit Codes
+
+- 0: All checks passed and cleanup requests succeeded.
+- 1: A permission or content check failed.
+- 2: An execution or cleanup error prevented reliable completion.
+
+### Scope and Limitations
+
+The runner tests selected actions and resources; it is not a complete
+evaluation of every possible permission.
+
+Cleanup targets only this run's unique keys. It does not remove fixtures
+from earlier manual tests.
+
+Cleanup is attempted after handled failures, but cannot be guaranteed
+after forced termination, credential expiry or connectivity loss.
+
+This implementation requires an unversioned bucket. Successful blank
+GetBucketVersioning output is normalized to an empty configuration.
+
+Existing unit tests cover checker logic and result interpretation.
+The orchestration and cleanup paths do not yet have dedicated unit tests.
